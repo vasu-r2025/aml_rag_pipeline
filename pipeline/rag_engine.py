@@ -5,7 +5,7 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 client = chromadb.PersistentClient(path="db/chroma")
 collection = client.get_or_create_collection(name="aml_typologies")
 
-CONFIDENCE_THRESHOLD = 0.25
+CONFIDENCE_THRESHOLD = 0.45
 
 
 def build_transaction_text(row):
@@ -156,6 +156,45 @@ if __name__ == "__main__":
         "receiving_currency": "US Dollar",
         "payment_format": "Reinvestment",
     }
+
+
+def add_to_knowledge_base(llm_result, transaction_text):
+    if llm_result["status"] != "LLM_ANALYZED":
+        return False
+    if not llm_result["typology"] or llm_result["typology"].upper() == "UNKNOWN":
+        return False
+    if not llm_result["reasoning"]:
+        return False
+
+    existing = collection.get(where={"source": "llm_discovered"})
+    next_id_num = len(existing["ids"]) + 1
+    new_id = "llm_discovered_" + str(next_id_num).zfill(3)
+
+    text = (
+        "Typology: "
+        + llm_result["typology"]
+        + ". "
+        + llm_result["reasoning"]
+        + " Indicators: "
+        + transaction_text
+    )
+
+    embedding = model.encode([text]).tolist()
+
+    collection.add(
+        documents=[text],
+        embeddings=embedding,
+        ids=[new_id],
+        metadatas=[
+            {
+                "typology": llm_result["typology"],
+                "risk_level": llm_result["risk_level"],
+                "source": "llm_discovered",
+            }
+        ],
+    )
+    return True
+
     result = query_rag(test_row)
     print("Status: " + result["status"])
     print("Typology: " + str(result["typology"]))

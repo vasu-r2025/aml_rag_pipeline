@@ -8,6 +8,17 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 MODEL = "llama-3.3-70b-versatile"
 
+KNOWN_TYPOLOGIES = """
+Fan-Out: one sender, many receivers, different banks, similar amounts.
+Fan-In: many senders, one receiver, different banks, accumulating funds.
+Cycle: funds move through a chain of banks and return to the original sender.
+Scatter-Gather: funds scatter to many receivers, then gather back into one account.
+Stack: funds pass through a linear chain of accounts, amount decreasing slightly each hop.
+Fan-Out Micro: one sender, many receivers, amounts just below reporting threshold.
+Fan-In Aggregation: many small senders into one receiver over time, low individual amounts.
+Rapid Cycle: funds return to origin within hours, automated-looking rapid transfers.
+"""
+
 
 def analyze_with_llm(transaction_text, similarity_score):
     prompt = (
@@ -17,10 +28,16 @@ def analyze_with_llm(transaction_text, similarity_score):
         + str(similarity_score)
         + " which is below the confidence threshold.\n\n"
         "Transaction details:\n" + transaction_text + "\n\n"
+        "Known AML typologies:\n" + KNOWN_TYPOLOGIES + "\n"
+        "If the transaction clearly resembles one of these typologies, name it exactly as written above. "
+        "Only respond UNKNOWN if it truly matches none of them.\n\n"
         "Based on AML knowledge, analyze this transaction and respond in this exact format:\n"
         "TYPOLOGY: <name of closest AML typology or UNKNOWN>\n"
         "RISK_LEVEL: <Low, Medium, High, or Critical>\n"
         "REASONING: <one sentence explanation>\n"
+        "Known AML typologies to consider: " + KNOWN_TYPOLOGIES + ". "
+        "If the transaction clearly resembles one of these, name it. "
+        "Only use UNKNOWN if it truly matches none of them.\n\n"
     )
 
     try:
